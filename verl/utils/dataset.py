@@ -1,17 +1,3 @@
-# Copyright 2024 Bytedance Ltd. and/or its affiliates
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import math
 import os
 from collections import defaultdict
@@ -82,6 +68,15 @@ def process_video(
 ) -> Union[list[ImageObject], tuple[list[ImageObject], list[float]]]:
     vision_info = {"video": video, "min_pixels": min_pixels, "max_pixels": max_pixels, "fps": video_fps}
     return fetch_video(vision_info, return_video_sample_fps=return_fps)
+
+
+def _ensure_list(data: Any) -> list:
+    """Ensure data is a list. If it's None, return empty list. If it's a single item, wrap it in a list."""
+    if data is None:
+        return []
+    if isinstance(data, (list, tuple)):
+        return list(data)
+    return [data]
 
 
 class RLHFDataset(Dataset):
@@ -183,7 +178,7 @@ class RLHFDataset(Dataset):
         messages = self._build_messages(example)
         if self.image_key in example:
             prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-            images = example[self.image_key]
+            images = _ensure_list(example[self.image_key])
             if self.image_dir is not None and len(images) != 0 and isinstance(images[0], str):  # image paths
                 images = [os.path.join(self.image_dir, image) for image in images]
 
@@ -195,7 +190,7 @@ class RLHFDataset(Dataset):
             return model_inputs["input_ids"].size(-1) <= self.max_prompt_length
         elif self.video_key in example:
             prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-            videos = example[self.video_key]
+            videos = _ensure_list(example[self.video_key])
             if self.image_dir is not None and len(videos) != 0 and isinstance(videos[0], str):  # video paths
                 videos = [os.path.join(self.image_dir, video) for video in videos]
 
@@ -221,7 +216,7 @@ class RLHFDataset(Dataset):
 
         if self.image_key in example:
             prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-            images = example.pop(self.image_key)
+            images = _ensure_list(example.pop(self.image_key))
             if self.image_dir is not None and len(images) != 0 and isinstance(images[0], str):  # image paths
                 images = [os.path.join(self.image_dir, image) for image in images]
 
@@ -235,7 +230,7 @@ class RLHFDataset(Dataset):
             example["multi_modal_data"] = {"images": images}
         elif self.video_key in example:
             prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-            videos = example.pop(self.video_key)
+            videos = _ensure_list(example.pop(self.video_key))
             if self.image_dir is not None and len(videos) != 0 and isinstance(videos[0], str):  # video paths
                 videos = [os.path.join(self.image_dir, video) for video in videos]
 

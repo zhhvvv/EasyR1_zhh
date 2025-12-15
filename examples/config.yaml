@@ -16,8 +16,8 @@ data:
   override_chat_template: null
   shuffle: true
   seed: 1
-  min_pixels: 262144
-  max_pixels: 4194304
+  min_pixels: 4704
+  max_pixels: 1016064
   filter_overlong_prompts: true
 
 algorithm:
