@@ -130,6 +130,7 @@ class vLLMRollout(BaseRollout):
             "max_tokens": config.response_length,
             "detokenize": False,
             "logit_bias": _get_logit_bias(processor),
+            "logprobs": getattr(config, "logprobs", None),
         }
         default_sampling_params = SamplingParams()
         for key in config.to_dict().keys():
@@ -197,6 +198,12 @@ class vLLMRollout(BaseRollout):
                 response_ids, self.pad_token_id, max_length=self.config.response_length
             ).to(input_ids.device)
 
+            # Extract logprobs if available (already expanded by n)
+            response_logprobs = None
+            if self.sampling_params.logprobs is not None:
+                response_logprobs = [output.logprobs for completion in completions for output in completion.outputs]
+                response_logprobs = np.array(response_logprobs, dtype=object)
+
             if self.sampling_params.n > 1:
                 batch_size = batch_size * self.sampling_params.n
                 input_ids = _repeat_interleave(input_ids, self.sampling_params.n)
@@ -204,6 +211,7 @@ class vLLMRollout(BaseRollout):
                 position_ids = _repeat_interleave(position_ids, self.sampling_params.n)
                 if batch_multi_modal_data is not None:
                     batch_multi_modal_data = _repeat_interleave(batch_multi_modal_data, self.sampling_params.n)
+                # response_logprobs 不需要repeat，已经在提取时展开了
 
         sequence_ids = torch.cat([input_ids, response_ids], dim=-1)
         response_length = response_ids.size(1)
@@ -234,9 +242,11 @@ class vLLMRollout(BaseRollout):
             },
             batch_size=batch_size,
         )
+        
+        non_tensor_batch = {}
         if batch_multi_modal_data is not None:
-            non_tensor_batch = {"multi_modal_data": batch_multi_modal_data}
-        else:
-            non_tensor_batch = {}
+            non_tensor_batch["multi_modal_data"] = batch_multi_modal_data
+        if response_logprobs is not None:
+            non_tensor_batch["response_logprobs"] = response_logprobs
 
         return DataProto(batch=batch, non_tensor_batch=non_tensor_batch, meta_info=prompts.meta_info)

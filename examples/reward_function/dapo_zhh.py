@@ -15,7 +15,7 @@ def format_reward(response: str) -> float:
 
 def accuracy_reward(response: str, ground_truth: str) -> float:
     answer = extract_boxed_content(response)
-    return 1.0 if grade_answer(answer, ground_truth) else -1.0
+    return 1.0 if grade_answer(answer, ground_truth) else 0
 
 
 def soft_overlong_punishment(

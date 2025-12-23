@@ -6,10 +6,10 @@
 #SBATCH --mem-per-gpu=200G
 #SBATCH --cpus-per-gpu=16
 #SBATCH -t 30-00:00:00
-#SBATCH -J RFTvsSFT
+#SBATCH -J confidence_rl
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:8
-#SBATCH --nodelist=klb-dgx-009,klb-dgx-015
+#SBATCH --exclusive
 
 # saved for debugging
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
@@ -20,22 +20,28 @@ export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 export REQUESTS_CA_BUNDLE=$SSL_CERT_FILE
 
 source .venv/bin/activate
-MODEL_PATH=/lustre/projects/med-multi-llm/haohan/EasyR1/checkpoints/rif_geo/qwen2_5_7b_geo_random_1/global_step_20/actor/huggingface
+MODEL_PATH=/cm/shared/llm_models/Qwen/Qwen2.5-VL-7B-Instruct
 
 python3 -m verl.trainer.main \
     config=examples/config.yaml \
-    data.train_files=/lustre/projects/med-multi-llm/haohan/cl_rif_dataset_v1/mllm_cl_pathvqa_random/train.parquet \
-    data.val_files=/lustre/projects/med-multi-llm/haohan/cl_rif_dataset_v1/mllm_cl_pathvqa_random/test.parquet \
+    data.train_files=/lustre/projects/med-multi-llm/haohan/tpami/pathvqa_easyfirst/mllm_cl_pathvqa_rollout/train.parquet \
+    data.val_files=/lustre/projects/med-multi-llm/haohan/tpami/pathvqa_easyfirst/mllm_cl_pathvqa_rollout/test.parquet \
     data.prompt_key=problem \
     data.image_key=images \
+    data.shuffle=true \
+    data.rollout_batch_size=128 \
+    data.mini_rollout_batch_size=256 \
+    worker.actor.fsdp.torch_dtype=bf16 \
+    worker.actor.optim.strategy=adamw_bf16 \
     worker.actor.model.model_path=${MODEL_PATH} \
-    worker.reward.reward_function=./examples/reward_function/math.py:compute_score \
-    trainer.project_name=rif_geo_pathvqa \
-    trainer.experiment_name=qwen2_5_7b_geo_pathvqa_random \
-    data.format_prompt=./examples/format_prompt/math.jinja \
+    worker.reward.reward_function=./examples/reward_function/math_with_confidence_v1_penalty.py:compute_score \
+    trainer.project_name=confidence_rl \
+    trainer.experiment_name=grpo_shuffle_v1_continue_penalty \
+    data.format_prompt=./examples/format_prompt/math_with_confidence.jinja \
     trainer.n_gpus_per_node=8 \
     trainer.save_model_only=true \
     data.image_key=images \
     worker.rollout.enforce_eager=false \
     data.filter_overlong_prompts=true \
-    trainer.total_epochs=1
+    trainer.total_epochs=3
+

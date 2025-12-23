@@ -11,6 +11,7 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 
+
 # saved for debugging
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
@@ -28,14 +29,14 @@ python3 -m verl.trainer.main \
     data.val_files=/lustre/projects/med-multi-llm/haohan/tpami/pathvqa_easyfirst/mllm_cl_pathvqa_rollout/test.parquet \
     data.prompt_key=problem \
     data.image_key=images \
-    data.shuffle=true \
+    data.shuffle=True \
     data.rollout_batch_size=128 \
     data.mini_rollout_batch_size=256 \
     worker.actor.model.model_path=${MODEL_PATH} \
     worker.actor.fsdp.torch_dtype=bf16 \
     worker.actor.optim.strategy=adamw_bf16 \
     worker.reward.reward_function=./examples/reward_function/dapo_zhh.py:compute_score \
-    worker.reward.reward_function_kwargs='{"max_response_length":256,"overlong_buffer_length":64,"overlong_penalty_factor":1.0}' \
+    worker.reward.reward_function_kwargs='{"max_response_length":768,"overlong_buffer_length":128,"overlong_penalty_factor":0.0}' \
     worker.actor.clip_ratio_low=0.2 \
     worker.actor.clip_ratio_high=0.28 \
     worker.actor.clip_ratio_dual=10.0 \
@@ -43,17 +44,17 @@ python3 -m verl.trainer.main \
     worker.rollout.max_num_batched_tokens=16384 \
     worker.rollout.val_override_config='{"n":16,"temperature":1.0,"top_p":0.7}' \
     trainer.project_name=rank_pathvqa \
-    trainer.experiment_name=dapo \
+    trainer.experiment_name=dapo_01acc_no_overlong_penalty_kl_filter_h \
     data.format_prompt=./examples/format_prompt/math.jinja \
     trainer.n_gpus_per_node=8 \
-    trainer.save_model_only=true \
-    algorithm.disable_kl=True \
+    trainer.save_model_only=True \
+    algorithm.disable_kl=False \
     algorithm.online_filtering=True \
     algorithm.filter_key=accuracy_normalized \
-    algorithm.filter_low=0.01 \
-    algorithm.filter_high=1.1 \
+    algorithm.filter_low=0.0 \
+    algorithm.filter_high=1.0 \
     data.image_key=images \
     trainer.max_try_make_batch=10 \
-    worker.rollout.enforce_eager=false \
-    data.filter_overlong_prompts=true \
-    trainer.total_epochs=1
+    worker.rollout.enforce_eager=False \
+    data.filter_overlong_prompts=True \
+    trainer.total_epochs=3

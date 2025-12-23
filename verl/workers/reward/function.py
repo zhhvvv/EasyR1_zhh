@@ -57,13 +57,18 @@ class SequentialFunctionRewardManagerMixin:
             response_str = self.tokenizer.decode(
                 valid_response_ids, skip_special_tokens=self.config.skip_special_tokens
             )
-            score = self.reward_fn(
-                {
-                    "response": response_str,
-                    "response_length": cur_response_length,
-                    "ground_truth": data.non_tensor_batch["ground_truth"][i],
-                }
-            )
+            
+            reward_input = {
+                "response": response_str,
+                "response_length": cur_response_length,
+                "ground_truth": data.non_tensor_batch["ground_truth"][i],
+            }
+            
+            # 传递 response_logprobs（如果存在）
+            if "response_logprobs" in data.non_tensor_batch:
+                reward_input["response_logprobs"] = data.non_tensor_batch["response_logprobs"][i]
+            
+            score = self.reward_fn(reward_input)
             reward_tensor[i, cur_response_length - 1] = score["overall"]
             for key, value in score.items():
                 reward_metrics[key].append(value)
@@ -78,19 +83,28 @@ class BatchFunctionRewardManagerMixin:
         reward_inputs = []
         response_ids = data.batch["responses"]
         response_length = torch.sum(data.batch["response_mask"], dim=-1)
+        
+        # 检查是否有 response_logprobs
+        has_logprobs = "response_logprobs" in data.non_tensor_batch
+        
         for i in range(len(data)):
             cur_response_length = int(response_length[i].item())  # avoid tensor indexing error
             valid_response_ids = response_ids[i][:cur_response_length]
             response_str = self.tokenizer.decode(
                 valid_response_ids, skip_special_tokens=self.config.skip_special_tokens
             )
-            reward_inputs.append(
-                {
-                    "response": response_str,
-                    "response_length": cur_response_length,
-                    "ground_truth": data.non_tensor_batch["ground_truth"][i],
-                }
-            )
+            
+            reward_input = {
+                "response": response_str,
+                "response_length": cur_response_length,
+                "ground_truth": data.non_tensor_batch["ground_truth"][i],
+            }
+            
+            # 添加 response_logprobs（如果存在）
+            if has_logprobs:
+                reward_input["response_logprobs"] = data.non_tensor_batch["response_logprobs"][i]
+            
+            reward_inputs.append(reward_input)
 
         scores = self.reward_fn(reward_inputs)
         reward_tensor = torch.zeros_like(data.batch["responses"], dtype=torch.float32)
