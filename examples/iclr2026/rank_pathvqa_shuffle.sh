@@ -9,6 +9,7 @@
 #SBATCH -J rank_pathvqa
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:8
+#SBATCH --exclusive
 
 # saved for debugging
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
@@ -28,10 +29,14 @@ python3 -m verl.trainer.main \
     data.prompt_key=problem \
     data.image_key=images \
     data.shuffle=true \
+    data.rollout_batch_size=128 \
+    data.mini_rollout_batch_size=256 \
+    worker.actor.fsdp.torch_dtype=bf16 \
+    worker.actor.optim.strategy=adamw_bf16 \
     worker.actor.model.model_path=${MODEL_PATH} \
     worker.reward.reward_function=./examples/reward_function/math.py:compute_score \
-    trainer.project_name=rank_pathvqa_shuffle \
-    trainer.experiment_name=qwen2_5_7b_geo_pathvqa_easy \
+    trainer.project_name=rank_pathvqa \
+    trainer.experiment_name=grpo_shuffle \
     data.format_prompt=./examples/format_prompt/math.jinja \
     trainer.n_gpus_per_node=8 \
     trainer.save_model_only=true \
