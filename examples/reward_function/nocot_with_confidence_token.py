@@ -8,14 +8,14 @@ REWARD_NAME = "math_with_confidence"
 REWARD_TYPE = "batch"
 
 # Confidence token IDs
-HIGH_TOKEN_ID = None  # 设置为high对应的token_id
-LOW_TOKEN_ID = None   # 设置为low对应的token_id
+HIGH_TOKEN_ID = 11892  # 设置为high对应的token_id
+LOW_TOKEN_ID = 10303   # 设置为low对应的token_id
 
 
 def format_reward(response: str) -> float:
-    """检查格式：必须包含<confidence>标签"""
+    """检查格式：必须包含<confidence>标签，且high/low周围不能有空格"""
     pattern = re.compile(
-        r"<confidence>\s*(high|low)\s*</confidence>",
+        r"<confidence>(high|low)</confidence>",
         re.DOTALL | re.IGNORECASE
     )
     return 1.0 if pattern.search(response) else 0.0
@@ -24,7 +24,7 @@ def format_reward(response: str) -> float:
 def extract_answer(response: str) -> str:
     """从response中提取答案部分（移除confidence标签）"""
     answer = re.sub(
-        r"<confidence>\s*(high|low)\s*</confidence>",
+        r"<confidence>(high|low)</confidence>",
         "",
         response,
         flags=re.IGNORECASE | re.DOTALL
@@ -40,7 +40,7 @@ def accuracy_reward(response: str, ground_truth: str) -> float:
 
 def extract_confidence_label(response: str) -> Optional[str]:
     """从response中提取声明的confidence标签"""
-    match = re.search(r"<confidence>\s*(high|low)\s*</confidence>", response, re.IGNORECASE)
+    match = re.search(r"<confidence>(high|low)</confidence>", response, re.IGNORECASE)
     return match.group(1).lower() if match else None
 
 
@@ -117,8 +117,9 @@ def confidence_reward_prob_based(
     
     # 计算熵并转换为确定性分数
     entropy = calculate_entropy(token_logprobs_dict)
-    # 假设最大熵约为log(候选数量)，这里用log(10)≈2.3作为参考
-    max_entropy = 2.3
+    # 动态计算最大熵：均匀分布的熵 = log(候选数量)
+    num_candidates = len(token_logprobs_dict)
+    max_entropy = np.log(num_candidates) if num_candidates > 1 else 1.0
     certainty = 1.0 - min(entropy / max_entropy, 1.0)  # [0, 1]，越大越确定
     
     if is_correct_confidence:
@@ -144,6 +145,8 @@ def compute_score(
             - "response_logprobs": vLLM返回的logprobs
         format_weight: 格式权重
         confidence_weight: 置信度权重
+    
+    规则：如果format未通过，overall_score = 0（不给任何奖励）
     """
     accuracy_weight = 1.0 - format_weight - confidence_weight
     
@@ -160,6 +163,10 @@ def compute_score(
         conf_reward = 0.0
         confidence_prob = 0.0
         position_entropy = 0.0
+        declared_conf_numeric = 0.0  # high=1.0, low=0.0, none=0.0
+        
+        if declared_conf:
+            declared_conf_numeric = 1.0 if declared_conf == "high" else 0.0
         
         if declared_conf and response_logprobs:
             token_logprobs_dict = find_confidence_token_position(response_logprobs)
@@ -184,13 +191,16 @@ def compute_score(
                 
                 position_entropy = calculate_entropy(token_logprobs_dict)
         
-        # 计算总分
-        overall_score = (
-            accuracy_weight * accuracy_score +
-            format_weight * format_score +
-            confidence_weight * conf_reward
-        )
-        overall_score = max(0.0, min(1.0, overall_score))
+        # 计算总分：如果format未通过，overall_score = 0
+        if format_score > 0:
+            overall_score = (
+                accuracy_weight * accuracy_score +
+                format_weight * format_score +
+                confidence_weight * conf_reward
+            )
+            overall_score = max(0.0, min(1.0, overall_score))
+        else:
+            overall_score = 0.0
         
         # 分类统计
         is_correct = (accuracy_score == 1.0)
@@ -203,7 +213,7 @@ def compute_score(
             "format": format_score,
             "accuracy": accuracy_score,
             "confidence_reward": conf_reward,
-            "declared_confidence": declared_conf or "none",
+            "declared_confidence": declared_conf_numeric,  # high=1.0, low=0.0
             "confidence_prob": confidence_prob,
             "position_entropy": position_entropy,
             # 分类统计
