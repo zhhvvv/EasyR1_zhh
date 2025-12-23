@@ -62,7 +62,7 @@ worker:
     n: 5
     temperature: 1.0
     top_p: 1.0
-    logprobs: 5
+    logprobs: null
     limit_images: 0
     gpu_memory_utilization: 0.6
     enforce_eager: false

@@ -22,7 +22,7 @@ export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 export REQUESTS_CA_BUNDLE=$SSL_CERT_FILE
 
 source .venv/bin/activate
-MODEL_PATH=/lustre/projects/med-multi-llm/haohan/EasyR1/checkpoints/rank_pathvqa/grpo_shuffle/global_step_456/actor/huggingface
+MODEL_PATH=CAIR-HKISI/Qwen2.5-VL-7B-MedSFT
 
 python3 -m verl.trainer.main \
     config=examples/config.yaml \
@@ -36,10 +36,11 @@ python3 -m verl.trainer.main \
     worker.actor.fsdp.torch_dtype=bf16 \
     worker.actor.optim.strategy=adamw_bf16 \
     worker.actor.model.model_path=${MODEL_PATH} \
-    worker.reward.reward_function=./examples/reward_function/math_with_confidence_v1_penalty.py:compute_score \
+    wroker.rollout.logprobs=5 \
+    worker.reward.reward_function=./examples/reward_function/nocot_with_confidence_token.py:compute_score \
     trainer.project_name=confidence_rl \
-    trainer.experiment_name=grpo_shuffle_v1_penalty_continue \
-    data.format_prompt=./examples/format_prompt/math_with_confidence.jinja \
+    trainer.experiment_name=grpo_shuffle_nocot_with_confidence_token \
+    data.format_prompt=./examples/format_prompt/cares.jinja \
     trainer.n_gpus_per_node=8 \
     trainer.save_model_only=true \
     data.image_key=images \
