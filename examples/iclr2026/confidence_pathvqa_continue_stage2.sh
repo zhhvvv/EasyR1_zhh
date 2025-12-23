@@ -36,7 +36,7 @@ python3 -m verl.trainer.main \
     worker.actor.fsdp.torch_dtype=bf16 \
     worker.actor.optim.strategy=adamw_bf16 \
     worker.actor.model.model_path=${MODEL_PATH} \
-    wroker.rollout.logprobs=5 \
+    worker.rollout.logprobs=5 \
     worker.reward.reward_function=./examples/reward_function/nocot_with_confidence_token.py:compute_score \
     trainer.project_name=confidence_rl \
     trainer.experiment_name=grpo_shuffle_nocot_with_confidence_token \
